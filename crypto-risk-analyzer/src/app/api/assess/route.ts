@@ -26,12 +26,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json(riskReport);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in risk assessment API route:', error);
 
-    // Return a generic error message to the client
+    // Provide a more specific error message if available
+    const errorMessage = error.message || 'An internal server error occurred.';
+
     return NextResponse.json(
-      { error: 'An internal server error occurred.' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

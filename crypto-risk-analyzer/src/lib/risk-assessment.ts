@@ -179,14 +179,14 @@ function calculateWalletConcentrationRisk(
 }
 
 function calculateTokenomicsRisk(coingeckoData: CoinGeckoData, mobulaData: MobulaMarketData): RiskFactor {
+  if (!coingeckoData || !coingeckoData.market_data) {
+    return { name: 'Tokenomics', score: 70, details: "Tokenomics data not available." };
+  }
+
   let score = 30; // Base score
   const findings: string[] = [];
 
   const data = coingeckoData.market_data;
-
-  if (!data) {
-    return { name: 'Tokenomics', score: 70, details: "Tokenomics data not available." };
-  }
 
   // 1. Supply Analysis
   if (data.max_supply === null) {
@@ -222,6 +222,10 @@ function calculateTokenomicsRisk(coingeckoData: CoinGeckoData, mobulaData: Mobul
 }
 
 function calculateCommunityAndDevRisk(coingeckoData: CoinGeckoData): RiskFactor {
+  if (!coingeckoData) {
+    return { name: 'Community & Developer Activity', score: 80, details: "Community & dev data not available." };
+  }
+
   let score = 20; // Base score
   const findings: string[] = [];
 
@@ -272,12 +276,16 @@ function calculateCommunityAndDevRisk(coingeckoData: CoinGeckoData): RiskFactor 
 }
 
 function calculateTradingBehaviorRisk(coingeckoData: CoinGeckoData, mobulaData: MobulaMarketData): RiskFactor {
+  if (!coingeckoData || !coingeckoData.market_data) {
+    return { name: 'Trading Behavior', score: 70, details: "Trading data not available." };
+  }
+
   let score = 30; // Base score
   const findings: string[] = [];
 
   const data = coingeckoData.market_data;
 
-  if (!data || !data.total_volume?.usd || !data.market_cap?.usd) {
+  if (!data.total_volume?.usd || !data.market_cap?.usd) {
     return { name: 'Trading Behavior', score: 70, details: "Trading data not available." };
   }
 
@@ -314,12 +322,12 @@ function calculateTradingBehaviorRisk(coingeckoData: CoinGeckoData, mobulaData: 
 }
 
 function calculateNameHeuristicsRisk(coingeckoData: CoinGeckoData): RiskFactor {
-  let score = 0; // No base score for this one
-  const findings: string[] = [];
-
-  if (!coingeckoData.name || !coingeckoData.symbol) {
+  if (!coingeckoData || !coingeckoData.name || !coingeckoData.symbol) {
     return { name: 'Name/Symbol Heuristics', score: 10, details: "Name or symbol not available." };
   }
+
+  let score = 0; // No base score for this one
+  const findings: string[] = [];
 
   const name = coingeckoData.name.toLowerCase();
   const symbol = coingeckoData.symbol.toLowerCase();

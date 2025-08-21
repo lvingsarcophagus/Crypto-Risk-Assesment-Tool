@@ -32,9 +32,15 @@ export async function getMarketDataFromMobula(
       throw new Error(`Mobula API request failed with status ${response.status}: ${errorBody}`);
     }
 
-    const data = await response.json();
+    const responseData = await response.json();
+
     // The actual data is nested under a `data` property in the response
-    return data.data;
+    if (responseData && responseData.data) {
+      return responseData.data;
+    }
+
+    // If the structure is not as expected, throw an error
+    throw new Error('Unexpected response structure from Mobula API.');
   } catch (error) {
     console.error('Error fetching market data from Mobula:', error);
     throw error;

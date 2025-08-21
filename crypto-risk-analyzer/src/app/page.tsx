@@ -5,25 +5,45 @@ import Results from '@/app/components/Results';
 import { RiskReport } from '@/lib/risk-assessment'; // Import the type
 
 export default function Home() {
-  const [tokenAddress, setTokenAddress] = useState('');
-  const [blockchain, setBlockchain] = useState('ethereum'); // Use lowercase IDs
+  const [tokenInput, setTokenInput] = useState('');
+  const [blockchain, setBlockchain] = useState('ethereum');
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<RiskReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setIsResolving(false);
     setResults(null);
     setError(null);
 
+    let contractAddress = tokenInput;
+    let chain = blockchain;
+
     try {
+      // If the input doesn't look like an address, resolve it first
+      if (!tokenInput.startsWith('0x')) {
+        setIsResolving(true);
+        const resolveResponse = await fetch(`/api/resolve-token?query=${encodeURIComponent(tokenInput)}`);
+        const resolveData = await resolveResponse.json();
+
+        if (!resolveResponse.ok) {
+          throw new Error(resolveData.error || 'Could not find a token with that name.');
+        }
+
+        contractAddress = resolveData.contractAddress;
+        chain = resolveData.blockchain;
+        // Update the dropdown to the resolved chain
+        setBlockchain(chain);
+        setIsResolving(false);
+      }
+
       const response = await fetch('/api/assess', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ contractAddress: tokenAddress, blockchain }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contractAddress, blockchain: chain }),
       });
 
       if (!response.ok) {
@@ -38,6 +58,7 @@ export default function Home() {
       setError(err.message);
     } finally {
       setIsLoading(false);
+      setIsResolving(false);
     }
   };
 
@@ -56,17 +77,17 @@ export default function Home() {
         <div className="bg-gray-800 p-8 rounded-lg shadow-lg">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="tokenAddress" className="block text-sm font-medium text-gray-300">
-                Token Contract Address
+              <label htmlFor="tokenInput" className="block text-sm font-medium text-gray-300">
+                Token Name or Contract Address
               </label>
               <input
                 type="text"
-                name="tokenAddress"
-                id="tokenAddress"
-                value={tokenAddress}
-                onChange={(e) => setTokenAddress(e.target.value)}
+                name="tokenInput"
+                id="tokenInput"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
                 className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm h-10 px-3"
-                placeholder="0x..."
+                placeholder="e.g., 'Chainlink' or '0x...'"
                 required
               />
             </div>
@@ -105,7 +126,9 @@ export default function Home() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p className="text-lg">Analyzing... This may take a moment.</p>
+            <p className="text-lg">
+              {isResolving ? 'Resolving token...' : 'Analyzing... This may take a moment.'}
+            </p>
           </div>
         )}
 
