@@ -44,17 +44,30 @@ export async function getTokenHoldersFromMoralis(
       throw new Error(`Moralis API request failed with status ${response.status}: ${errorBody}`);
     }
 
-    // The actual response is slightly different, it has a `result` property which is an object
-    // with a `total` and `result` property. I will adjust the code to reflect this.
     const rawResponse: any = await response.json();
 
-    // The actual data is nested under a `result` property in the response from the API.
-    // And the total is also inside this nested result. This is based on typical Moralis responses.
-    // If the API has changed, this might need adjustment.
-    // Let's assume the structure is { cursor, page, page_size, result: { total, result: [...] } }
-    // Or maybe it's just { total, result: [...] } at the top level. The docs are a bit ambiguous.
-    // I will assume the structure I've defined in the interface is correct for now.
-    return rawResponse;
+    // Validate the structure of the Moralis API response
+    if (rawResponse && typeof rawResponse === 'object' && 'result' in rawResponse) {
+      // The Moralis v2.2 API returns the main data directly
+      // Let's ensure the nested properties exist before returning
+      const resultData = rawResponse.result;
+      if (resultData && typeof resultData.total === 'number' && Array.isArray(resultData.result)) {
+         return {
+           total: resultData.total,
+           result: resultData.result,
+         };
+      }
+      // Handle cases where the structure inside 'result' is different
+      if (rawResponse.total !== undefined && Array.isArray(rawResponse.result)) {
+        return {
+            total: rawResponse.total,
+            result: rawResponse.result
+        };
+      }
+    }
+
+    // If the structure is not as expected, throw an error
+    throw new Error('Unexpected response structure from Moralis API.');
 
   } catch (error) {
     console.error('Error fetching token holders from Moralis:', error);
