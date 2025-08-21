@@ -1,12 +1,50 @@
 import { getCoinDataFromCoinGecko, CoinGeckoData } from './api/coingecko';
-import { getTokenHoldersFromMoralis, MoralisTokenHoldersResponse } from './api/moralis';
-import { getMarketDataFromMobula, MobulaMarketData } from './api/mobula';
+import { getTokenHoldersFromMoralis, MoralisTokenHoldersResponse, TokenHolder } from './api/moralis';
+import { getMarketDataFromMobula } from './api/mobula';
+import { resolveTokenAddresses } from './token-resolver';
+
+// --- Helper Functions ---
+
+/**
+ * Maps blockchain names to Moralis chain identifiers
+ */
+function getBlockchainToMoralisMapping(blockchain: string): string {
+  const mapping: { [key: string]: string } = {
+    'ethereum': 'eth',
+    'bsc': 'bsc',
+    'binance-smart-chain': 'bsc',
+    'polygon': 'polygon',
+    'polygon-pos': 'polygon',
+    'avalanche': 'avalanche',
+    'arbitrum': 'arbitrum',
+    'optimism': 'optimism',
+    'fantom': 'fantom',
+    'solana': 'solana',
+    'cardano': 'cardano',
+    'cosmos': 'cosmos',
+    'terra': 'terra',
+    'cronos': 'cronos',
+    'near': 'near',
+    'harmony': 'harmony',
+    'moonbeam': 'moonbeam',
+    'kava': 'kava',
+    'celo': 'celo',
+    'aurora': 'aurora',
+    'gnosis': 'gnosis',
+    'base': 'base'
+  };
+  
+  return mapping[blockchain] || blockchain;
+}
 
 // --- Data Structures ---
 
 export interface RiskInput {
   contractAddress: string;
   blockchain: string; // e.g., 'ethereum'
+  coinGeckoId?: string; // Optional: for native tokens
+  moralisAddress?: string | null; // Specific address for Moralis API
+  mobulaAddress?: string | null; // Specific address for Mobula API
 }
 
 export interface RiskFactor {
@@ -19,24 +57,67 @@ export interface RiskReport {
   totalScore: number;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   factors: RiskFactor[];
-  // We can add more detailed findings here
+  marketData?: {
+    price?: number;
+    volume24h?: number;
+    marketCap?: number;
+    priceChange24h?: number;
+    [key: string]: any;
+  };
+  holderData?: {
+    totalHolders?: number;
+    top10Percentage?: number;
+    holderDistribution?: any[];
+    [key: string]: any;
+  };
+  dataSources?: string[];
+  rawData?: {
+    coinGecko?: any;
+    moralis?: any;
+    mobula?: any;
+  };
 }
 
 // --- Main Calculation Function ---
 
 export async function calculateRisk(input: RiskInput): Promise<RiskReport> {
-  // 1. Fetch data from all APIs
-  // TODO: Add smart fallbacks (e.g., try Mobula if CoinGecko fails)
-  const coingeckoData = await getCoinDataFromCoinGecko(input.blockchain, input.contractAddress);
-  const moralisData = await getTokenHoldersFromMoralis(input.blockchain, input.contractAddress);
-  const mobulaData = await getMarketDataFromMobula(input.blockchain, input.contractAddress);
+  // 1. Fetch data from all APIs with appropriate addresses
+  // CoinGecko can use either coinGeckoId (for native) or contract address
+  const coingeckoData = await getCoinDataFromCoinGecko(input.blockchain, input.contractAddress, input.coinGeckoId);
+  
+  // Moralis needs contract addresses - skip if not available
+  let moralisData = null;
+  if (input.moralisAddress) {
+    try {
+      // Get the token info to determine proper chain name for Moralis
+      const tokenInfo = resolveTokenAddresses(input.blockchain, input.coinGeckoId || '');
+      const moralisChain = tokenInfo?.moralisChain || getBlockchainToMoralisMapping(input.blockchain);
+      
+      console.log(`Debug: input.blockchain="${input.blockchain}", moralisChain="${moralisChain}", input.moralisAddress="${input.moralisAddress}"`);
+      
+      moralisData = await getTokenHoldersFromMoralis(moralisChain, input.moralisAddress);
+    } catch (error) {
+      console.warn('Moralis API failed, continuing without holder data:', error);
+    }
+  }
+  
+  // Mobula can handle various address types - skip if not available for now
+  // TODO: Integrate Mobula data into risk calculations
+  if (input.mobulaAddress) {
+    try {
+      await getMarketDataFromMobula(input.blockchain, input.mobulaAddress);
+      // Will integrate this data in future iterations
+    } catch (error) {
+      console.warn('Mobula API failed, continuing without additional market data:', error);
+    }
+  }
 
   // 2. Calculate score for each factor
-  const marketMetrics = calculateMarketMetricsRisk(coingeckoData, mobulaData);
+  const marketMetrics = calculateMarketMetricsRisk(coingeckoData);
   const walletConcentration = calculateWalletConcentrationRisk(moralisData, coingeckoData);
-  const tokenomics = calculateTokenomicsRisk(coingeckoData, mobulaData);
+  const tokenomics = calculateTokenomicsRisk(coingeckoData);
   const communityAndDev = calculateCommunityAndDevRisk(coingeckoData);
-  const tradingBehavior = calculateTradingBehaviorRisk(coingeckoData, mobulaData);
+  const tradingBehavior = calculateTradingBehaviorRisk(coingeckoData);
   const nameHeuristics = calculateNameHeuristicsRisk(coingeckoData);
 
   const factors: RiskFactor[] = [
@@ -71,13 +152,51 @@ export async function calculateRisk(input: RiskInput): Promise<RiskReport> {
     totalScore: Math.round(totalScore),
     riskLevel,
     factors,
+    marketData: {
+      price: coingeckoData?.market_data?.market_cap?.usd ? 
+        Object.values(coingeckoData.market_data.market_cap)[0] as number : undefined,
+      volume24h: coingeckoData?.market_data?.total_volume ? 
+        Object.values(coingeckoData.market_data.total_volume)[0] as number : undefined,
+      marketCap: coingeckoData?.market_data?.market_cap ? 
+        Object.values(coingeckoData.market_data.market_cap)[0] as number : undefined,
+      priceChange24h: coingeckoData?.market_data?.price_change_percentage_24h,
+    },
+    holderData: moralisData ? {
+      totalHolders: moralisData.result?.length || 0,
+      top10Percentage: calculateTop10Percentage(moralisData),
+      holderDistribution: moralisData.result?.slice(0, 10) || [],
+    } : undefined,
+    dataSources: [
+      'CoinGecko',
+      ...(moralisData ? ['Moralis'] : []),
+    ],
+    rawData: {
+      coinGecko: coingeckoData,
+      moralis: moralisData,
+      mobula: undefined,
+    },
   };
+}
+
+// Helper function to calculate top 10 percentage
+function calculateTop10Percentage(moralisData: MoralisTokenHoldersResponse): number | undefined {
+  if (!moralisData.result || moralisData.result.length === 0) return undefined;
+  
+  const totalSupply = moralisData.result.reduce((sum: number, holder: TokenHolder) => 
+    sum + parseFloat(holder.balance), 0);
+  if (totalSupply === 0) return undefined;
+  
+  const top10Supply = moralisData.result
+    .slice(0, Math.min(10, moralisData.result.length))
+    .reduce((sum: number, holder: TokenHolder) => sum + parseFloat(holder.balance), 0);
+  
+  return Math.round((top10Supply / totalSupply) * 100);
 }
 
 
 // --- Scoring Functions (Placeholders) ---
 
-function calculateMarketMetricsRisk(coingeckoData: CoinGeckoData, mobulaData: MobulaMarketData): RiskFactor {
+function calculateMarketMetricsRisk(coingeckoData: CoinGeckoData): RiskFactor {
   let score = 50; // Base score
   const findings: string[] = [];
 
@@ -138,7 +257,7 @@ function calculateMarketMetricsRisk(coingeckoData: CoinGeckoData, mobulaData: Mo
 }
 
 function calculateWalletConcentrationRisk(
-  moralisData: MoralisTokenHoldersResponse,
+  moralisData: MoralisTokenHoldersResponse | null,
   coingeckoData: CoinGeckoData
 ): RiskFactor {
   let score = 30; // Base score
@@ -178,7 +297,7 @@ function calculateWalletConcentrationRisk(
   return { name: 'Wallet Concentration', score: finalScore, details: findings.join(', ') };
 }
 
-function calculateTokenomicsRisk(coingeckoData: CoinGeckoData, mobulaData: MobulaMarketData): RiskFactor {
+function calculateTokenomicsRisk(coingeckoData: CoinGeckoData): RiskFactor {
   if (!coingeckoData || !coingeckoData.market_data) {
     return { name: 'Tokenomics', score: 70, details: "Tokenomics data not available." };
   }
@@ -275,7 +394,7 @@ function calculateCommunityAndDevRisk(coingeckoData: CoinGeckoData): RiskFactor 
   return { name: 'Community & Developer Activity', score: finalScore, details: findings.join(', ') };
 }
 
-function calculateTradingBehaviorRisk(coingeckoData: CoinGeckoData, mobulaData: MobulaMarketData): RiskFactor {
+function calculateTradingBehaviorRisk(coingeckoData: CoinGeckoData): RiskFactor {
   if (!coingeckoData || !coingeckoData.market_data) {
     return { name: 'Trading Behavior', score: 70, details: "Trading data not available." };
   }

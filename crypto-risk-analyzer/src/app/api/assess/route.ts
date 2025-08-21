@@ -3,7 +3,7 @@ import { calculateRisk } from '@/lib/risk-assessment';
 
 export async function POST(request: Request) {
   try {
-    const { contractAddress, blockchain } = await request.json();
+    const { contractAddress, blockchain, coinGeckoId, moralisAddress, mobulaAddress } = await request.json();
 
     if (!contractAddress || !blockchain) {
       return NextResponse.json(
@@ -22,15 +22,21 @@ export async function POST(request: Request) {
 
     // TODO: Add a mapping from UI-friendly blockchain names to the IDs used by the APIs
     // For now, assume the frontend sends the correct ID (e.g., 'ethereum')
-    const riskReport = await calculateRisk({ contractAddress, blockchain });
+    const riskReport = await calculateRisk({ 
+      contractAddress, 
+      blockchain, 
+      coinGeckoId: coinGeckoId || undefined,
+      moralisAddress: moralisAddress || null,
+      mobulaAddress: mobulaAddress || null
+    });
 
     return NextResponse.json(riskReport);
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in risk assessment API route:', error);
 
     // Provide a more specific error message if available
-    const errorMessage = error.message || 'An internal server error occurred.';
+    const errorMessage = error instanceof Error ? error.message : 'An internal server error occurred.';
 
     return NextResponse.json(
       { error: errorMessage },

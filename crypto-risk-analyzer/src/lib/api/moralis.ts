@@ -1,11 +1,16 @@
 const MORALIS_API_URL = 'https://deep-index.moralis.io/api/v2.2';
 
 // Basic types for the Moralis response.
-// These can be expanded later for more detail.
 export interface TokenHolder {
   owner_address: string;
   balance: string;
+  balance_formatted: number;
   percentage_relative_to_total_supply: number;
+  is_contract: boolean;
+  owner_address_label?: string;
+  entity?: string;
+  entity_logo?: string;
+  usd_value?: number;
 }
 
 export interface MoralisTokenHoldersResponse {
@@ -44,30 +49,48 @@ export async function getTokenHoldersFromMoralis(
       throw new Error(`Moralis API request failed with status ${response.status}: ${errorBody}`);
     }
 
-    const rawResponse: any = await response.json();
+    const rawResponse: unknown = await response.json();
+    
+    // Debug: Log the actual response structure
+    console.log('Moralis API Response Structure:', JSON.stringify(rawResponse, null, 2));
 
-    // Validate the structure of the Moralis API response
-    if (rawResponse && typeof rawResponse === 'object' && 'result' in rawResponse) {
-      // The Moralis v2.2 API returns the main data directly
-      // Let's ensure the nested properties exist before returning
-      const resultData = rawResponse.result;
-      if (resultData && typeof resultData.total === 'number' && Array.isArray(resultData.result)) {
-         return {
-           total: resultData.total,
-           result: resultData.result,
-         };
-      }
-      // Handle cases where the structure inside 'result' is different
-      if (rawResponse.total !== undefined && Array.isArray(rawResponse.result)) {
+    // Handle the actual Moralis API v2.2 response structure
+    if (rawResponse && typeof rawResponse === 'object' && rawResponse !== null) {
+      const responseObj = rawResponse as Record<string, unknown>;
+      
+      // Check for the expected structure: { result: [...], page_size: number, etc. }
+      if (Array.isArray(responseObj.result)) {
+        const holders = responseObj.result as Array<unknown>;
+        
+        // Validate that holders have the expected structure
+        const validHolders = holders.filter(holder => 
+          holder && 
+          typeof holder === 'object' && 
+          holder !== null &&
+          'owner_address' in holder &&
+          'balance' in holder
+        );
+
+        console.log(`Found ${validHolders.length} valid holders out of ${holders.length} total`);
+        
         return {
-            total: rawResponse.total,
-            result: rawResponse.result
+          total: validHolders.length,
+          result: validHolders as TokenHolder[],
         };
+      }
+      
+      // Handle empty response or error cases
+      if (responseObj.message) {
+        console.log('Moralis API returned message:', responseObj.message);
       }
     }
 
-    // If the structure is not as expected, throw an error
-    throw new Error('Unexpected response structure from Moralis API.');
+    // Return empty result if no valid data found
+    console.log('No valid holder data found in Moralis response');
+    return {
+      total: 0,
+      result: [],
+    };
 
   } catch (error) {
     console.error('Error fetching token holders from Moralis:', error);
