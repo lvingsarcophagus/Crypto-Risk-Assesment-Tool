@@ -1,7 +1,16 @@
 const MOBULA_API_URL = 'https://production-api.mobula.io/api/1';
 
-// Placeholder for the detailed type. Will be fleshed out later.
-export type MobulaMarketData = any;
+// Mobula API response types
+export interface MobulaMarketData {
+  data?: {
+    price?: number;
+    market_cap?: number;
+    volume?: number;
+    price_change_24h?: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
 
 /**
  * Fetches market data from the Mobula API.
@@ -15,7 +24,8 @@ export async function getMarketDataFromMobula(
 ): Promise<MobulaMarketData> {
   const apiKey = process.env.MOBULA_API_KEY;
   if (!apiKey) {
-    throw new Error('Mobula API key is not configured in .env.local');
+    console.warn('Mobula API key is not configured - returning empty market data');
+    return { data: {} };
   }
 
   const url = `${MOBULA_API_URL}/market/data?blockchain=${blockchain}&asset=${asset}`;

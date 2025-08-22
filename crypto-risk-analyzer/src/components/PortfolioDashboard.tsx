@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { useWalletConnection } from '@/hooks/useWalletConnection';
 
 interface PortfolioRiskAnalysis {
@@ -27,9 +28,8 @@ export const PortfolioDashboard: React.FC = () => {
   const { wallet, tokens, isLoadingTokens, connectWallet, disconnectWallet } = useWalletConnection();
   const [portfolioAnalysis, setPortfolioAnalysis] = useState<PortfolioRiskAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showConnectModal, setShowConnectModal] = useState(false);
 
-  const analyzePortfolio = async () => {
+  const analyzePortfolio = useCallback(async () => {
     if (!wallet || !tokens.length) return;
 
     setIsAnalyzing(true);
@@ -56,13 +56,13 @@ export const PortfolioDashboard: React.FC = () => {
     } finally {
       setIsAnalyzing(false);
     }
-  };
+  }, [wallet, tokens]);
 
   useEffect(() => {
     if (wallet && tokens.length > 0) {
       analyzePortfolio();
     }
-  }, [wallet, tokens]);
+  }, [wallet, tokens, analyzePortfolio]);
 
   const getRiskColor = (level: string) => {
     switch (level?.toUpperCase()) {
@@ -101,7 +101,13 @@ export const PortfolioDashboard: React.FC = () => {
               onClick={() => connectWallet('metamask')}
               className="w-full max-w-sm mx-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-3"
             >
-              <img src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" alt="MetaMask" className="w-6 h-6" />
+              <Image 
+                src="https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg" 
+                alt="MetaMask" 
+                width={24}
+                height={24}
+                className="w-6 h-6" 
+              />
               Connect MetaMask
             </button>
             
@@ -308,7 +314,13 @@ export const PortfolioDashboard: React.FC = () => {
                 <div key={index} className="p-4 bg-gray-700/30 rounded-lg">
                   <div className="flex items-center gap-3 mb-2">
                     {token.logo && (
-                      <img src={token.logo} alt={token.symbol} className="w-8 h-8 rounded-full" />
+                      <Image 
+                        src={token.logo} 
+                        alt={token.symbol} 
+                        width={32}
+                        height={32}
+                        className="w-8 h-8 rounded-full" 
+                      />
                     )}
                     <div>
                       <div className="text-white font-medium">{token.symbol}</div>

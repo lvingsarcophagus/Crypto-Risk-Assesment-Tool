@@ -148,7 +148,7 @@ export default function PriceChart({
         cornerRadius: 8,
         padding: 12,
         callbacks: {
-          label: function(context: any) {
+          label: function(context: { parsed: { y: number } }) {
             const value = context.parsed.y;
             return `$${value.toLocaleString('en-US', {
               minimumFractionDigits: 2,
@@ -182,8 +182,8 @@ export default function PriceChart({
           font: {
             size: 11,
           },
-          callback: function(value: any) {
-            const numValue = parseFloat(value);
+          callback: function(value: string | number) {
+            const numValue = parseFloat(value.toString());
             return `$${numValue.toLocaleString('en-US', {
               minimumFractionDigits: 0,
               maximumFractionDigits: numValue < 1 ? 6 : 2,

@@ -66,7 +66,8 @@ export async function getCoinDataFromCoinGecko(
 ): Promise<CoinGeckoData | null> {
   const apiKey = process.env.COINGECKO_API_KEY;
   if (!apiKey) {
-    throw new Error('CoinGecko API key is not configured in .env.local');
+    console.warn('CoinGecko API key is not configured - returning null for token data');
+    return null;
   }
 
   let url: string;
@@ -172,7 +173,8 @@ export async function getCoinHistoricalData(
 ): Promise<HistoricalPrice[] | null> {
   const apiKey = process.env.COINGECKO_API_KEY;
   if (!apiKey) {
-    throw new Error('CoinGecko API key is not configured in .env.local');
+    console.warn('CoinGecko API key is not configured - returning null for historical data');
+    return null;
   }
 
   let coinIdToUse: string;

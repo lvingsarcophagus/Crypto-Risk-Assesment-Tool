@@ -102,10 +102,6 @@ export default React.memo(function Results({ report, input }: ResultsProps) {
                   src={report.tokenMetadata.image} 
                   alt={report.tokenMetadata.name || 'Token'} 
                   className="w-16 h-16 rounded-full border-2 border-white/20 object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
                 />
               </div>
             )}

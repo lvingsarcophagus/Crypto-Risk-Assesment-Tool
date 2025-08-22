@@ -1,32 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import Image from 'next/image';
 
 interface OptimizedImageProps {
   src: string;
   alt: string;
   className?: string;
-  onError?: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
+  width?: number;
+  height?: number;
 }
 
 export const OptimizedImage: React.FC<OptimizedImageProps> = ({ 
   src, 
   alt, 
   className = '', 
-  onError 
+  width = 64,
+  height = 64 
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  useEffect(() => {
-    // Preload image for faster loading
-    const img = new Image();
-    img.onload = () => setIsLoaded(true);
-    img.onerror = () => setHasError(true);
-    img.src = src;
-  }, [src]);
-
-  const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  const handleError = () => {
     setHasError(true);
-    if (onError) onError(e);
+  };
+
+  const handleLoad = () => {
+    setIsLoaded(true);
   };
 
   if (hasError) {
@@ -42,12 +40,15 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
       {!isLoaded && (
         <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 animate-pulse rounded-full" />
       )}
-      <img
+      <Image
         src={src}
         alt={alt}
-        className={`${className} ${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
+        width={width}
+        height={height}
+        className={`${isLoaded ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300`}
         onError={handleError}
-        loading="lazy"
+        onLoad={handleLoad}
+        unoptimized={true}
         decoding="async"
       />
     </div>

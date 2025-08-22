@@ -11,10 +11,6 @@ interface CoinGeckoCoin {
   market_cap_rank?: number;
 }
 
-interface CoinGeckoSearchResponse {
-  coins: CoinGeckoCoin[];
-}
-
 // This function will be called by the new API route
 async function searchCoinGecko(query: string) {
   const apiKey = process.env.COINGECKO_API_KEY;

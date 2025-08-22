@@ -33,7 +33,8 @@ export async function getTokenHoldersFromMoralis(
 ): Promise<MoralisTokenHoldersResponse> {
   const apiKey = process.env.MORALIS_API_KEY;
   if (!apiKey) {
-    throw new Error('Moralis API key is not configured in .env.local');
+    console.warn('Moralis API key is not configured - returning empty holders data');
+    return { result: [], total: 0 };
   }
 
   // We fetch the top 100 holders to analyze concentration.

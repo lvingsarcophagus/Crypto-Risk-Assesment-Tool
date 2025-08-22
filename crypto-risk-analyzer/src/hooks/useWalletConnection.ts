@@ -30,9 +30,9 @@ export function useWalletConnection() {
     const checkConnection = async () => {
       if (typeof window !== 'undefined' && window.ethereum) {
         try {
-          const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-          if (accounts.length > 0) {
-            const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' }) as string[];
+          if (Array.isArray(accounts) && accounts.length > 0) {
+            const chainId = await window.ethereum.request({ method: 'eth_chainId' }) as string;
             setWallet({
               address: accounts[0],
               chainId: parseInt(chainId, 16),
@@ -58,11 +58,11 @@ export function useWalletConnection() {
 
         const accounts = await window.ethereum.request({
           method: 'eth_requestAccounts',
-        });
+        }) as string[];
 
         const chainId = await window.ethereum.request({
           method: 'eth_chainId',
-        });
+        }) as string;
 
         setWallet({
           address: accounts[0],
@@ -71,8 +71,9 @@ export function useWalletConnection() {
         });
 
         // Listen for account changes
-        window.ethereum.on('accountsChanged', (accounts: string[]) => {
-          if (accounts.length === 0) {
+        window.ethereum.on('accountsChanged', (...args: unknown[]) => {
+          const accounts = args[0] as string[];
+          if (!Array.isArray(accounts) || accounts.length === 0) {
             setWallet(null);
             setTokens([]);
           } else {
@@ -81,7 +82,8 @@ export function useWalletConnection() {
         });
 
         // Listen for chain changes
-        window.ethereum.on('chainChanged', (chainId: string) => {
+        window.ethereum.on('chainChanged', (...args: unknown[]) => {
+          const chainId = args[0] as string;
           setWallet(prev => prev ? { ...prev, chainId: parseInt(chainId, 16) } : null);
         });
       }

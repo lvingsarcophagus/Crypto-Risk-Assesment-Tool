@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { calculateRisk } from '@/lib/risk-assessment';
+import { calculateRisk, RiskReport } from '@/lib/risk-assessment';
+
+// Portfolio analysis types
+interface PortfolioAnalysis {
+  symbol: string;
+  percentage: number;
+  riskScore: number;
+  riskLevel: string;
+  error?: boolean;
+  contractAddress?: string;
+  balance?: number;
+  usdValue?: number;
+  riskReport?: RiskReport;
+}
 
 interface PortfolioToken {
   address: string;
@@ -171,7 +184,7 @@ function getBlockchainFromChainId(chainId: number): string {
   return chainMapping[chainId] || 'ethereum';
 }
 
-function calculateDiversificationScore(analyses: any[]): number {
+function calculateDiversificationScore(analyses: PortfolioAnalysis[]): number {
   if (analyses.length <= 1) return 0;
   if (analyses.length >= 20) return 100;
   
@@ -188,7 +201,7 @@ function calculateDiversificationScore(analyses: any[]): number {
   return Math.min(countScore + distributionScore, 100);
 }
 
-function calculateConcentrationRisk(analyses: any[]): number {
+function calculateConcentrationRisk(analyses: PortfolioAnalysis[]): number {
   const sortedByPercentage = analyses.sort((a, b) => b.percentage - a.percentage);
   
   // Top 3 holdings concentration
@@ -200,7 +213,7 @@ function calculateConcentrationRisk(analyses: any[]): number {
   return Math.min(top3Concentration, 100);
 }
 
-function calculateRiskDistribution(analyses: any[]) {
+function calculateRiskDistribution(analyses: PortfolioAnalysis[]) {
   const total = analyses.length;
   const riskCounts = analyses.reduce((acc, analysis) => {
     const level = analysis.riskLevel.toLowerCase();
@@ -217,7 +230,7 @@ function calculateRiskDistribution(analyses: any[]) {
 }
 
 function generateRecommendations(
-  analyses: any[],
+  analyses: PortfolioAnalysis[],
   diversificationScore: number,
   concentrationRisk: number,
   riskLevel: string

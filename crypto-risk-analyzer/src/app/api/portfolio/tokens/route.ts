@@ -1,17 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-interface TokenBalance {
-  token_address: string;
-  symbol: string;
-  name: string;
-  logo?: string;
-  thumbnail?: string;
-  decimals: number;
-  balance: string;
-  possible_spam: boolean;
-  verified_contract: boolean;
-}
-
 interface MoralisTokenResponse {
   token_address: string;
   symbol: string;
