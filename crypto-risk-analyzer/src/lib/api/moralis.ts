@@ -1,5 +1,8 @@
 const MORALIS_API_URL = 'https://deep-index.moralis.io/api/v2.2';
 
+// Import cache for performance optimization
+import { apiCache } from '../cache';
+
 // Basic types for the Moralis response.
 export interface TokenHolder {
   owner_address: string;
@@ -35,6 +38,16 @@ export async function getTokenHoldersFromMoralis(
 
   // We fetch the top 100 holders to analyze concentration.
   const url = `${MORALIS_API_URL}/erc20/${tokenAddress}/owners?chain=${chain}&limit=100`;
+
+  // Create cache key
+  const cacheKey = `moralis:${chain}:${tokenAddress}`;
+  
+  // Check cache first
+  const cachedData = apiCache.get(cacheKey) as MoralisTokenHoldersResponse | null;
+  if (cachedData) {
+    console.log('Returning cached Moralis data');
+    return cachedData;
+  }
 
   try {
     const response = await fetch(url, {
@@ -73,10 +86,15 @@ export async function getTokenHoldersFromMoralis(
 
         console.log(`Found ${validHolders.length} valid holders out of ${holders.length} total`);
         
-        return {
+        const result = {
           total: validHolders.length,
           result: validHolders as TokenHolder[],
         };
+        
+        // Cache the successful response
+        apiCache.set(cacheKey, result);
+        
+        return result;
       }
       
       // Handle empty response or error cases

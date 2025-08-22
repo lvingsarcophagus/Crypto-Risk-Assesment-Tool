@@ -1,13 +1,10 @@
 "use client";
 
 import React, { useState } from 'react';
-import { RiskReport, RiskInput } from '@/lib/risk-assessment';
-import { OptimizedImage } from './OptimizedImage';
-import PriceChart from '../../components/PriceChart';
+import { RiskReport } from '@/lib/risk-assessment';
 
 interface ResultsProps {
   report: RiskReport;
-  input?: RiskInput;
 }
 
 const getRiskColor = (level: RiskReport['riskLevel']) => {
@@ -85,7 +82,7 @@ const JsonViewer = ({ data, title }: { data: unknown; title: string }) => {
   );
 };
 
-export default React.memo(function Results({ report, input }: ResultsProps) {
+export default function Results({ report }: ResultsProps) {
   const riskColor = getRiskColor(report.riskLevel);
   const riskBgGradient = getRiskBgGradient(report.riskLevel);
   const riskSummary = getRiskSummary(report.riskLevel);
@@ -98,10 +95,10 @@ export default React.memo(function Results({ report, input }: ResultsProps) {
           <div className="flex items-center space-x-4">
             {report.tokenMetadata.image && (
               <div className="flex-shrink-0">
-                <OptimizedImage
+                <img 
                   src={report.tokenMetadata.image} 
                   alt={report.tokenMetadata.name || 'Token'} 
-                  className="w-16 h-16 rounded-full border-2 border-white/20 object-cover"
+                  className="w-16 h-16 rounded-full border-2 border-white/20"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
@@ -263,41 +260,113 @@ export default React.memo(function Results({ report, input }: ResultsProps) {
               </svg>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-white">Holder Analysis</h3>
-              <p className="text-sm text-gray-400">Distribution & concentration</p>
+              <h3 className="text-lg font-semibold text-white">
+                Top Token Holders ({report.holderAnalysis?.topHolders?.length || 0} analyzed)
+              </h3>
+              <p className="text-sm text-gray-400">Distribution & concentration analysis</p>
             </div>
           </div>
           
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-400">Total Holders</span>
-              <span className="text-white font-semibold">
-                {report.holderData?.totalHolders ? report.holderData.totalHolders.toLocaleString() : 'N/A'}
-              </span>
+          {/* Enhanced Holder Distribution Summary */}
+          {report.holderAnalysis?.topHolders && report.holderAnalysis.topHolders.length > 0 ? (
+            <>
+              <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-xl p-4">
+                  <div className="text-sm text-gray-400">Top Holder</div>
+                  <div className="text-lg font-bold text-white">
+                    {report.holderAnalysis.topHolders[0]?.percentage_relative_to_total_supply 
+                      ? `${(report.holderAnalysis.topHolders[0].percentage_relative_to_total_supply * 100).toFixed(2)}%`
+                      : 'N/A'}
+                  </div>
+                </div>
+                <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-4">
+                  <div className="text-sm text-gray-400">Top 5 Combined</div>
+                  <div className="text-lg font-bold text-white">
+                    {report.holderAnalysis.topHolders.slice(0, 5).reduce((acc: number, holder: any) => 
+                      acc + ((holder.percentage_relative_to_total_supply || 0) * 100), 0
+                    ).toFixed(2)}%
+                  </div>
+                </div>
+                <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-xl p-4">
+                  <div className="text-sm text-gray-400">Distribution</div>
+                  <div className="text-lg font-bold text-white">
+                    {report.holderAnalysis.topHolders.slice(0, 5).reduce((acc: number, holder: any) => 
+                      acc + ((holder.percentage_relative_to_total_supply || 0) * 100), 0
+                    ) > 50 ? 'Concentrated' : 'Distributed'}
+                  </div>
+                </div>
+                <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-xl p-4">
+                  <div className="text-sm text-gray-400">Total Holders</div>
+                  <div className="text-lg font-bold text-white">
+                    {report.holderAnalysis.totalHolders?.toLocaleString() || 'Unknown'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {report.holderAnalysis.topHolders.slice(0, 15).map((holder: any, index: number) => {
+                  const percentage = holder.percentage_relative_to_total_supply 
+                    ? holder.percentage_relative_to_total_supply * 100 
+                    : 0;
+                  const isWhale = percentage > 5;
+                  const isLarge = percentage > 1;
+                  
+                  return (
+                    <div key={index} className={`flex items-center justify-between p-4 rounded-xl transition-all hover:bg-white/10 ${
+                      isWhale ? 'bg-red-500/10 border border-red-500/20' : 
+                      isLarge ? 'bg-yellow-500/10 border border-yellow-500/20' : 
+                      'bg-white/5 border border-white/10'
+                    }`}>
+                      <div className="flex items-center space-x-4">
+                        <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold ${
+                          isWhale ? 'bg-red-500/20 text-red-300' : 
+                          isLarge ? 'bg-yellow-500/20 text-yellow-300' : 
+                          'bg-gray-500/20 text-gray-300'
+                        }`}>
+                          #{index + 1}
+                        </div>
+                        <div>
+                          <div className="text-sm text-gray-300 font-mono">
+                            {holder.owner_address?.slice(0, 12)}...{holder.owner_address?.slice(-8)}
+                          </div>
+                          {holder.owner_address_label && (
+                            <div className="text-xs text-blue-400 mt-1">
+                              {holder.owner_address_label}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-semibold text-white">
+                          {holder.balance_formatted ? 
+                            holder.balance_formatted.toLocaleString(undefined, {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 2
+                            }) : '0'} tokens
+                        </div>
+                        <div className={`text-sm font-medium ${
+                          isWhale ? 'text-red-400' : isLarge ? 'text-yellow-400' : 'text-gray-400'
+                        }`}>
+                          {percentage.toFixed(3)}% of supply
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="text-center text-gray-400 py-8">
+              <div className="text-2xl mb-2">📊</div>
+              <div>No detailed holder data available for this token</div>
+              <div className="text-sm mt-2">
+                {report.holderData?.totalHolders ? 
+                  `Total estimated holders: ${report.holderData.totalHolders.toLocaleString()}` : 
+                  'Using basic holder metrics'
+                }
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Top 10 Holdings</span>
-              <span className="text-white font-semibold">
-                {report.holderData?.top10Percentage ? `${report.holderData.top10Percentage}%` : 'N/A'}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Concentration Risk</span>
-              <span className={`font-semibold ${
-                !report.holderData?.top10Percentage ? 'text-gray-400' :
-                report.holderData.top10Percentage > 70 ? 'text-red-400' :
-                report.holderData.top10Percentage > 50 ? 'text-orange-400' :
-                report.holderData.top10Percentage > 30 ? 'text-yellow-400' :
-                'text-green-400'
-              }`}>
-                {!report.holderData?.top10Percentage ? 'N/A' :
-                 report.holderData.top10Percentage > 70 ? 'Very High' :
-                 report.holderData.top10Percentage > 50 ? 'High' :
-                 report.holderData.top10Percentage > 30 ? 'Medium' :
-                 'Low'}
-              </span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Additional Metrics */}
@@ -337,18 +406,6 @@ export default React.memo(function Results({ report, input }: ResultsProps) {
         </div>
       </div>
 
-      {/* Price Chart Section */}
-      {report.tokenMetadata && input && (
-        <PriceChart
-          symbol={report.tokenMetadata.symbol || 'Unknown'}
-          assetPlatformId={input.blockchain}
-          contractAddress={input.contractAddress}
-          coinId={input.coinGeckoId}
-          days={30}
-          className="w-full"
-        />
-      )}
-
       {/* Raw API Data Section */}
       <div className="bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl">
         <div className="flex items-center space-x-3 mb-6">
@@ -378,4 +435,4 @@ export default React.memo(function Results({ report, input }: ResultsProps) {
       </div>
     </div>
   );
-});
+}

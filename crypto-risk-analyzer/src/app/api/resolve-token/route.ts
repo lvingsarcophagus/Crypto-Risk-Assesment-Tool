@@ -49,6 +49,38 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
     }
 
+    // Check if the query looks like a contract address
+    const isEthereumAddress = /^0x[a-fA-F0-9]{40}$/.test(query);
+    const isSolanaAddress = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(query);
+    
+    if (isEthereumAddress) {
+      console.log(`Direct Ethereum contract address provided: ${query}`);
+      return NextResponse.json({
+        name: `Token at ${query.slice(0, 8)}...`,
+        symbol: 'UNKNOWN',
+        coinGeckoId: null,
+        blockchain: 'ethereum',
+        contractAddress: query,
+        isNative: false,
+        moralisAddress: query,
+        mobulaAddress: query,
+      });
+    }
+    
+    if (isSolanaAddress) {
+      console.log(`Direct Solana contract address provided: ${query}`);
+      return NextResponse.json({
+        name: `Token at ${query.slice(0, 8)}...`,
+        symbol: 'UNKNOWN',
+        coinGeckoId: null,
+        blockchain: 'solana',
+        contractAddress: query,
+        isNative: false,
+        moralisAddress: query,
+        mobulaAddress: query,
+      });
+    }
+
     console.log(`Searching for token: ${query}`);
     const searchResults = await searchCoinGecko(query);
     console.log(`Search results:`, searchResults);

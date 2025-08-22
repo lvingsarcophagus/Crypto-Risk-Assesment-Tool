@@ -58,11 +58,10 @@ export interface RiskReport {
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   factors: RiskFactor[];
   tokenMetadata?: {
+    id?: string;
     name?: string;
     symbol?: string;
     image?: string;
-    thumb?: string;
-    large?: string;
     description?: string;
     homepage?: string;
     blockchain?: string;
@@ -81,8 +80,15 @@ export interface RiskReport {
     [key: string]: unknown;
   };
   holderAnalysis?: {
+    topHolders?: Array<{
+      owner_address: string;
+      balance: string;
+      percentage_relative_to_total_supply?: number;
+      [key: string]: unknown;
+    }>;
     totalHolders?: number;
-    topHolders?: TokenHolder[];
+    concentrationRisk?: number;
+    [key: string]: unknown;
   };
   dataSources?: string[];
   rawData?: {
@@ -97,7 +103,13 @@ export interface RiskReport {
 export async function calculateRisk(input: RiskInput): Promise<RiskReport> {
   // 1. Fetch data from all APIs with appropriate addresses
   // CoinGecko can use either coinGeckoId (for native) or contract address
-  const coingeckoData = await getCoinDataFromCoinGecko(input.blockchain, input.contractAddress, input.coinGeckoId);
+  let coingeckoData = null;
+  try {
+    coingeckoData = await getCoinDataFromCoinGecko(input.blockchain, input.contractAddress, input.coinGeckoId);
+  } catch (error) {
+    console.warn('CoinGecko API failed, continuing with limited data:', error);
+    // We'll continue with partial data instead of failing completely
+  }
   
   // Moralis needs contract addresses - skip if not available
   let moralisData = null;
@@ -167,12 +179,12 @@ export async function calculateRisk(input: RiskInput): Promise<RiskReport> {
     riskLevel,
     factors,
     tokenMetadata: {
+      id: coingeckoData?.id,
       name: coingeckoData?.name,
       symbol: coingeckoData?.symbol?.toUpperCase(),
-      image: coingeckoData?.image?.large,
-      thumb: coingeckoData?.image?.thumb,
-      large: coingeckoData?.image?.large,
-      description: coingeckoData?.description?.en,
+      image: coingeckoData?.image?.large || coingeckoData?.image?.small || coingeckoData?.image?.thumb,
+      description: coingeckoData?.description?.en ? 
+        coingeckoData.description.en.replace(/<[^>]*>/g, '').substring(0, 500) : undefined,
       homepage: coingeckoData?.links?.homepage?.[0],
       blockchain: input.blockchain,
     },
@@ -186,14 +198,19 @@ export async function calculateRisk(input: RiskInput): Promise<RiskReport> {
         Object.values(coingeckoData.market_data.market_cap)[0] as number : undefined,
       priceChange24h: coingeckoData?.market_data?.price_change_percentage_24h,
     },
-    holderData: moralisData && moralisData.result && moralisData.result.length > 0 ? {
-      totalHolders: moralisData.result.length,
+    holderData: moralisData ? {
+      totalHolders: moralisData.result?.length || 0,
       top10Percentage: calculateTop10Percentage(moralisData),
-      holderDistribution: moralisData.result.slice(0, 10),
+      holderDistribution: moralisData.result?.slice(0, 10) || [],
     } : undefined,
-    holderAnalysis: moralisData && moralisData.result && moralisData.result.length > 0 ? {
-      totalHolders: moralisData.result.length,
-      topHolders: moralisData.result.slice(0, 50), // Include top 50 holders for detailed analysis
+    holderAnalysis: moralisData ? {
+      topHolders: moralisData.result?.map(holder => ({
+        ...holder,
+        percentage_relative_to_total_supply: coingeckoData?.market_data?.total_supply ? 
+          (parseFloat(holder.balance) / coingeckoData.market_data.total_supply) : undefined
+      })) || [],
+      totalHolders: moralisData.total || moralisData.result?.length || 0,
+      concentrationRisk: calculateTop10Percentage(moralisData) || 0,
     } : undefined,
     dataSources: [
       'CoinGecko',
@@ -225,7 +242,7 @@ function calculateTop10Percentage(moralisData: MoralisTokenHoldersResponse): num
 
 // --- Scoring Functions (Placeholders) ---
 
-function calculateMarketMetricsRisk(coingeckoData: CoinGeckoData): RiskFactor {
+function calculateMarketMetricsRisk(coingeckoData: CoinGeckoData | null): RiskFactor {
   let score = 50; // Base score
   const findings: string[] = [];
 
@@ -234,7 +251,7 @@ function calculateMarketMetricsRisk(coingeckoData: CoinGeckoData): RiskFactor {
 
   if (!data || !data.market_data) {
     // If no market data is available, return a high risk score.
-    return { name: 'Market Metrics', score: 80, details: "No market data available." };
+    return { name: 'Market Metrics', score: 80, details: "No market data available - unable to assess market metrics." };
   }
 
   // 1. Market Cap Ranking
@@ -287,13 +304,13 @@ function calculateMarketMetricsRisk(coingeckoData: CoinGeckoData): RiskFactor {
 
 function calculateWalletConcentrationRisk(
   moralisData: MoralisTokenHoldersResponse | null,
-  coingeckoData: CoinGeckoData
+  coingeckoData: CoinGeckoData | null
 ): RiskFactor {
   let score = 30; // Base score
   const findings: string[] = [];
 
   if (!moralisData || !moralisData.result || !coingeckoData || !coingeckoData.market_data) {
-    return { name: 'Wallet Concentration', score: 70, details: "Holder or supply data not available." };
+    return { name: 'Wallet Concentration', score: 70, details: "Holder or supply data not available - unable to assess concentration risk." };
   }
 
   // 1. Top 10 Holders Concentration
@@ -326,9 +343,9 @@ function calculateWalletConcentrationRisk(
   return { name: 'Wallet Concentration', score: finalScore, details: findings.join(', ') };
 }
 
-function calculateTokenomicsRisk(coingeckoData: CoinGeckoData): RiskFactor {
+function calculateTokenomicsRisk(coingeckoData: CoinGeckoData | null): RiskFactor {
   if (!coingeckoData || !coingeckoData.market_data) {
-    return { name: 'Tokenomics', score: 70, details: "Tokenomics data not available." };
+    return { name: 'Tokenomics', score: 70, details: "Tokenomics data not available - unable to assess supply mechanics." };
   }
 
   let score = 30; // Base score
@@ -369,9 +386,9 @@ function calculateTokenomicsRisk(coingeckoData: CoinGeckoData): RiskFactor {
   return { name: 'Tokenomics', score: finalScore, details: findings.join(', ') };
 }
 
-function calculateCommunityAndDevRisk(coingeckoData: CoinGeckoData): RiskFactor {
+function calculateCommunityAndDevRisk(coingeckoData: CoinGeckoData | null): RiskFactor {
   if (!coingeckoData) {
-    return { name: 'Community & Developer Activity', score: 80, details: "Community & dev data not available." };
+    return { name: 'Community & Developer Activity', score: 80, details: "Community & dev data not available - unable to assess project activity." };
   }
 
   let score = 20; // Base score
@@ -423,9 +440,9 @@ function calculateCommunityAndDevRisk(coingeckoData: CoinGeckoData): RiskFactor 
   return { name: 'Community & Developer Activity', score: finalScore, details: findings.join(', ') };
 }
 
-function calculateTradingBehaviorRisk(coingeckoData: CoinGeckoData): RiskFactor {
+function calculateTradingBehaviorRisk(coingeckoData: CoinGeckoData | null): RiskFactor {
   if (!coingeckoData || !coingeckoData.market_data) {
-    return { name: 'Trading Behavior', score: 70, details: "Trading data not available." };
+    return { name: 'Trading Behavior', score: 70, details: "Trading data not available - unable to assess market behavior." };
   }
 
   let score = 30; // Base score
@@ -469,9 +486,9 @@ function calculateTradingBehaviorRisk(coingeckoData: CoinGeckoData): RiskFactor 
   return { name: 'Trading Behavior', score: finalScore, details: findings.join(', ') };
 }
 
-function calculateNameHeuristicsRisk(coingeckoData: CoinGeckoData): RiskFactor {
+function calculateNameHeuristicsRisk(coingeckoData: CoinGeckoData | null): RiskFactor {
   if (!coingeckoData || !coingeckoData.name || !coingeckoData.symbol) {
-    return { name: 'Name/Symbol Heuristics', score: 10, details: "Name or symbol not available." };
+    return { name: 'Name/Symbol Heuristics', score: 10, details: "Name or symbol not available - unable to assess naming patterns." };
   }
 
   let score = 0; // No base score for this one
