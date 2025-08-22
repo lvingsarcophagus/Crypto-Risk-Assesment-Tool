@@ -57,24 +57,38 @@ export interface RiskReport {
   totalScore: number;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   factors: RiskFactor[];
+  tokenMetadata?: {
+    name?: string;
+    symbol?: string;
+    image?: string;
+    thumb?: string;
+    large?: string;
+    description?: string;
+    homepage?: string;
+    blockchain?: string;
+  };
   marketData?: {
     price?: number;
     volume24h?: number;
     marketCap?: number;
     priceChange24h?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   holderData?: {
     totalHolders?: number;
     top10Percentage?: number;
-    holderDistribution?: any[];
-    [key: string]: any;
+    holderDistribution?: unknown[];
+    [key: string]: unknown;
+  };
+  holderAnalysis?: {
+    totalHolders?: number;
+    topHolders?: TokenHolder[];
   };
   dataSources?: string[];
   rawData?: {
-    coinGecko?: any;
-    moralis?: any;
-    mobula?: any;
+    coinGecko?: unknown;
+    moralis?: unknown;
+    mobula?: unknown;
   };
 }
 
@@ -152,19 +166,34 @@ export async function calculateRisk(input: RiskInput): Promise<RiskReport> {
     totalScore: Math.round(totalScore),
     riskLevel,
     factors,
+    tokenMetadata: {
+      name: coingeckoData?.name,
+      symbol: coingeckoData?.symbol?.toUpperCase(),
+      image: coingeckoData?.image?.large,
+      thumb: coingeckoData?.image?.thumb,
+      large: coingeckoData?.image?.large,
+      description: coingeckoData?.description?.en,
+      homepage: coingeckoData?.links?.homepage?.[0],
+      blockchain: input.blockchain,
+    },
     marketData: {
-      price: coingeckoData?.market_data?.market_cap?.usd ? 
-        Object.values(coingeckoData.market_data.market_cap)[0] as number : undefined,
+      price: coingeckoData?.market_data?.current_price?.usd || 
+        (coingeckoData?.market_data?.market_cap?.usd ? 
+          Object.values(coingeckoData.market_data.market_cap)[0] as number : undefined),
       volume24h: coingeckoData?.market_data?.total_volume ? 
         Object.values(coingeckoData.market_data.total_volume)[0] as number : undefined,
       marketCap: coingeckoData?.market_data?.market_cap ? 
         Object.values(coingeckoData.market_data.market_cap)[0] as number : undefined,
       priceChange24h: coingeckoData?.market_data?.price_change_percentage_24h,
     },
-    holderData: moralisData ? {
-      totalHolders: moralisData.result?.length || 0,
+    holderData: moralisData && moralisData.result && moralisData.result.length > 0 ? {
+      totalHolders: moralisData.result.length,
       top10Percentage: calculateTop10Percentage(moralisData),
-      holderDistribution: moralisData.result?.slice(0, 10) || [],
+      holderDistribution: moralisData.result.slice(0, 10),
+    } : undefined,
+    holderAnalysis: moralisData && moralisData.result && moralisData.result.length > 0 ? {
+      totalHolders: moralisData.result.length,
+      topHolders: moralisData.result.slice(0, 50), // Include top 50 holders for detailed analysis
     } : undefined,
     dataSources: [
       'CoinGecko',

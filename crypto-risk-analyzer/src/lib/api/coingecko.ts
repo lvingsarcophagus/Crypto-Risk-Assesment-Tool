@@ -4,11 +4,20 @@ export interface CoinGeckoData {
   name: string;
   symbol: string;
   market_cap_rank: number;
+  image?: {
+    thumb: string;
+    small: string;
+    large: string;
+  };
+  description?: {
+    en: string;
+  };
   links: {
     repos_url: {
       github: string[];
     };
     subreddit_url: string;
+    homepage?: string[];
   };
   developer_data?: {
     stars: number;
@@ -26,6 +35,7 @@ export interface CoinGeckoData {
     fully_diluted_valuation: { [currency: string]: number };
     total_volume: { [currency: string]: number };
     price_change_percentage_7d: number;
+    current_price?: { [currency: string]: number };
   };
 }
 
