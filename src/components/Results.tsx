@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { RiskReport } from '@/lib/risk-assessment';
 
 interface ResultsProps {
@@ -95,9 +96,11 @@ export default function Results({ report }: ResultsProps) {
           <div className="flex items-center space-x-4">
             {report.tokenMetadata.image && (
               <div className="flex-shrink-0">
-                <img 
+                <Image 
                   src={report.tokenMetadata.image} 
                   alt={report.tokenMetadata.name || 'Token'} 
+                  width={64}
+                  height={64}
                   className="w-16 h-16 rounded-full border-2 border-white/20"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
@@ -282,7 +285,7 @@ export default function Results({ report }: ResultsProps) {
                 <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-4">
                   <div className="text-sm text-gray-400">Top 5 Combined</div>
                   <div className="text-lg font-bold text-white">
-                    {report.holderAnalysis.topHolders.slice(0, 5).reduce((acc: number, holder: any) => 
+                    {report.holderAnalysis.topHolders.slice(0, 5).reduce((acc: number, holder: { percentage_relative_to_total_supply?: number }) => 
                       acc + ((holder.percentage_relative_to_total_supply || 0) * 100), 0
                     ).toFixed(2)}%
                   </div>
@@ -290,7 +293,7 @@ export default function Results({ report }: ResultsProps) {
                 <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-xl p-4">
                   <div className="text-sm text-gray-400">Distribution</div>
                   <div className="text-lg font-bold text-white">
-                    {report.holderAnalysis.topHolders.slice(0, 5).reduce((acc: number, holder: any) => 
+                    {report.holderAnalysis.topHolders.slice(0, 5).reduce((acc: number, holder: { percentage_relative_to_total_supply?: number }) => 
                       acc + ((holder.percentage_relative_to_total_supply || 0) * 100), 0
                     ) > 50 ? 'Concentrated' : 'Distributed'}
                   </div>
@@ -304,7 +307,14 @@ export default function Results({ report }: ResultsProps) {
               </div>
 
               <div className="space-y-3 max-h-80 overflow-y-auto">
-                {report.holderAnalysis.topHolders.slice(0, 15).map((holder: any, index: number) => {
+                {report.holderAnalysis.topHolders.slice(0, 15).map((holder: { 
+                  owner_address: string; 
+                  balance: string; 
+                  percentage_relative_to_total_supply?: number;
+                  owner_address_label?: string;
+                  balance_formatted?: number;
+                  [key: string]: unknown;
+                }, index: number) => {
                   const percentage = holder.percentage_relative_to_total_supply 
                     ? holder.percentage_relative_to_total_supply * 100 
                     : 0;
